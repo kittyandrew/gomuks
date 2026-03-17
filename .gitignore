@@ -16,3 +16,4 @@ deb/usr
 *.dll
 *.dylib
 *.so
+.dev-data/
