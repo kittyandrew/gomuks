@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import React, { CSSProperties, use } from "react"
 import Client from "@/api/client.ts"
+import { fakeGomuksSender } from "@/api/statestore"
 import { MemDBEvent } from "@/api/types"
 import { parseSimpleCSSUnit } from "@/util/cssparse.ts"
 import { emojiToReactionContent } from "@/util/emoji"
@@ -125,6 +126,7 @@ export const usePrimaryItems = (
 			noHistory: true,
 		})
 	}
+	const isFake = evt.sender === fakeGomuksSender
 	const isEditing = useEventAsState(roomCtx.isEditing)
 	const [isPending, pendingTitle] = getPending(evt)
 	const isEncrypted = getEncryption(roomCtx.store)
@@ -134,13 +136,13 @@ export const usePrimaryItems = (
 	const messageSendPL = pls.events?.[evtSendType] ?? pls.events_default ?? 0
 
 	const didFail = !!evt.send_error && evt.send_error !== "not sent" && !!evt.transaction_id
-	const canSend = !didFail && ownPL >= messageSendPL
+	const canSend = !isFake && !didFail && ownPL >= messageSendPL
 	const canEdit = canSend
 		&& evt.sender === client.userID
 		&& (evt.type === "m.room.message" || evt.type === "m.sticker")
 		&& evt.relation_type !== "m.replace"
 		&& !evt.redacted_by
-	const canReact = !didFail && ownPL >= reactPL
+	const canReact = !isFake && !didFail && ownPL >= reactPL
 
 	if (!didFail && !canReact && !canSend && !canEdit && !isHover) {
 		return null

@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import { use } from "react"
 import Client from "@/api/client.ts"
-import { useRoomMember, useRoomState } from "@/api/statestore"
+import { fakeGomuksSender, useRoomMember, useRoomState } from "@/api/statestore"
 import { MemDBEvent } from "@/api/types"
 import { quote } from "@/api/types/commands.ts"
 import { displayAsRedacted } from "@/util/displayAsRedacted.ts"
@@ -82,6 +82,12 @@ export const useSecondaryItems = (
 		})
 	}
 	const onClickRedact = () => {
+		if (isFake) {
+			roomCtx.store.timeline = roomCtx.store.timeline.filter(e => e.event_rowid !== evt.rowid)
+			roomCtx.store.notifyTimelineSubscribers()
+			closeModal()
+			return
+		}
 		openModal({
 			dimmed: true,
 			boxed: true,
@@ -131,9 +137,11 @@ export const useSecondaryItems = (
 	// We get pins from getPinnedEvents, but use the hook anyway to subscribe to changes
 	useRoomState(roomCtx.store, "m.room.pinned_events", "")
 	const memberEvt = useRoomMember(client, roomCtx.store, evt.sender)
+	const isFake = evt.sender === fakeGomuksSender
 	const [pls, ownPL] = getPowerLevels(roomCtx.store, client)
 	const pins = roomCtx.store.getPinnedEvents()
 	const pinPL = getEventLevel(pls, "m.room.pinned_events", true)
+	const canPin = !isFake && ownPL >= pinPL
 	const redactEvtPL = getEventLevel(pls, "m.room.redaction", false)
 	const redactOtherPL = pls.redact ?? 50
 	// Note: Both canRedact and canUnredact can be true at the same time if the event was "redacted" by a ban event.
@@ -151,18 +159,18 @@ export const useSecondaryItems = (
 			</button>}
 		{evt.decryption_error && evt.content.session_id &&
 			<button onClick={onClickRerequestSession}><RefreshIcon/>{names && "Request key"}</button>}
-		<button onClick={onClickShareEvent}><ShareIcon/>{names && "Share"}</button>
-		{ownPL >= pinPL && (pins.includes(evt.event_id)
+		{!isFake && <button onClick={onClickShareEvent}><ShareIcon/>{names && "Share"}</button>}
+		{canPin && (pins.includes(evt.event_id)
 			? <button onClick={onClickPin(false)}>
 				<UnpinIcon/>{names && "Unpin message"}
 			</button>
 			: <button onClick={onClickPin(true)} title={pendingTitle} disabled={isPending}>
 				<PinIcon/>{names && "Pin message"}
 			</button>)}
-		<button onClick={onClickReport} disabled={isPending} title={pendingTitle}>
+		{!isFake && <button onClick={onClickReport} disabled={isPending} title={pendingTitle}>
 			<ReportIcon/>{names && "Report"}
-		</button>
-		{canRedact && <button
+		</button>}
+		{(canRedact || isFake) && <button
 			onClick={onClickRedact}
 			disabled={isPending}
 			title={pendingTitle}
